@@ -1,0 +1,106 @@
+storm <- read.csv("repdata_data_StormData.csv.bz2")
+names(storm)
+
+
+length(table(storm$EVTYPE))
+
+# 985 different event types
+
+# translate all letters to lowercase
+event_types <- tolower(storm$EVTYPE)
+# replace all punct. characters with a space
+event_types <- gsub("[[:blank:][:punct:]+]", " ", event_types)
+length(unique(event_types))
+
+
+# 874 different events after data cleaning
+
+# update the data frame
+storm$EVTYPE <- event_types
+
+Fata_per_evt <- aggregate(FATALITIES ~ EVTYPE, data=storm, sum)
+Inj_per_evt <- aggregate(INJURIES ~ EVTYPE, data=storm, sum)
+
+# Top 10 event types for FATALITIES
+Fata_per_evt_Top10 <- head(Fata_per_evt[order(Fata_per_evt$FATALITIES, decreasing = TRUE),],10)
+
+# Top 10 event types for INJURIES
+Inj_per_evt_Top10 <- head(Inj_per_evt[order(Inj_per_evt$INJURIES, decreasing = TRUE),],10)
+
+# Set the levels in order
+p1 <- ggplot(data=Fata_per_evt_Top10,
+             aes(x=reorder(EVTYPE, FATALITIES), y=FATALITIES, fill=FATALITIES)) +
+    geom_bar(stat="identity") +
+    coord_flip() +
+    ylab("Total number of FATALITIES") +
+    xlab("Event type") +
+    theme(legend.position="none")
+
+p2 <- ggplot(data=Inj_per_evt_Top10,
+             aes(x=reorder(EVTYPE, INJURIES), y=INJURIES, fill=INJURIES)) +
+    geom_bar(stat="identity") +
+    coord_flip() + 
+    ylab("Total number of injuries") +
+    xlab("Event type") +
+    theme(legend.position="none")
+
+grid.arrange(p1, p2, top=textGrob("Top deadly weather events in the US (1950-2011)",gp=gpar(fontsize=14,font=3)))
+
+
+# Function to translate the exponent:
+exp_transform <- function(e) {
+    # h -> hundred, k -> thousand, m -> million, b -> billion
+    if (e %in% c('h', 'H'))
+        return(2)
+    else if (e %in% c('k', 'K'))
+        return(3)
+    else if (e %in% c('m', 'M'))
+        return(6)
+    else if (e %in% c('b', 'B'))
+        return(9)
+    else if (!is.na(as.numeric(e))) # if a digit
+        return(as.numeric(e))
+    else if (e %in% c('', '-', '?', '+'))
+        return(1)
+    else {
+        stop("Invalid exponent value.")
+    }
+}
+
+prop_dmg_exp <- sapply(storm$PROPDMGEXP, FUN=exp_transform)
+storm$PROPDMG_incl_exp <- storm$PROPDMG * (10 ** prop_dmg_exp)
+crop_dmg_exp <- sapply(storm$CROPDMGEXP, FUN=exp_transform)
+storm$CROPDMG_incl_exp <- storm$CROPDMG * (10 ** crop_dmg_exp)
+
+# Aggregate economic loss by event type
+PROPDMG_incl_exp_per_evt <- aggregate(PROPDMG_incl_exp ~ EVTYPE, data=storm, sum)
+CROPDMG_incl_exp_per_evt <- aggregate(CROPDMG_incl_exp ~ EVTYPE, data=storm, sum)
+
+# Top 10 event types for property damage
+PROPDMG_Top10 <- head(PROPDMG_incl_exp_per_evt[order(PROPDMG_incl_exp_per_evt$PROPDMG_incl_exp, decreasing = TRUE),],10)
+PROPDMG_Top10
+
+
+# Top 10 event types for crop damage
+CROPDMG_Top10 <- head(CROPDMG_incl_exp_per_evt[order(CROPDMG_incl_exp_per_evt$CROPDMG_incl_exp, decreasing = TRUE),],10)
+CROPDMG_Top10
+
+
+# Set the levels in order
+p3 <- ggplot(data=PROPDMG_Top10,
+             aes(x=reorder(EVTYPE, PROPDMG_incl_exp), y=PROPDMG_incl_exp, fill=PROPDMG_incl_exp)) +
+    geom_bar(stat="identity") +
+    coord_flip() +
+    ylab("Total number of property damage") +
+    xlab("Event type") +
+    theme(legend.position="none")
+
+p4 <- ggplot(data=CROPDMG_Top10,
+             aes(x=reorder(EVTYPE, CROPDMG_incl_exp), y=CROPDMG_incl_exp, fill=CROPDMG_incl_exp)) +
+    geom_bar(stat="identity") +
+    coord_flip() +
+    ylab("Total number of crop damage") +
+    xlab("Event type") +
+    theme(legend.position="none")
+
+grid.arrange(p3, p4, top=textGrob("Top weather events that caused most economic damage in the US (1950-2011)",gp=gpar(fontsize=14,font=3)))
